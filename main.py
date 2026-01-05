@@ -32,41 +32,47 @@ y = y[:32]
 dataset = TensorDataset (X, y)
 loader = DataLoader (dataset, batch_size = 32, shuffle = True)
 
-model = TGCNModel(
-    num_nodes=N,
-    in_feat=1,
-    gcn_hidden=16,
-    seq_len=seq_len,
-    pred_len=pred_len,
-    A_norm=A_norm
-)
+results = []
+epochs = 1500
 
-y_pred = model(X)
-print("Output shape:", y_pred.shape)
+for gcn_hidden in [16, 32, 64, 128]:
+    for lr in [0.001, 0.0005]:
 
-criterion = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+        print(f"\nTraining with gcn_hidden={gcn_hidden}, lr={lr}")
 
-epochs = 500
-model.train()
+        model = TGCNModel(
+            num_nodes=N,
+            in_feat=1,
+            gcn_hidden=gcn_hidden,
+            seq_len=seq_len,
+            pred_len=pred_len,
+            A_norm=A_norm
+        )
 
-train_losses = []
+        criterion = nn.MSELoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-for epoch in range(epochs):
-    total_loss = 0.0
+        losses = []
 
-    for xb, yb in loader:
-        optimizer.zero_grad()
-        preds = model(xb)
-        loss = criterion(preds, yb)
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.item()
+        for epoch in range(epochs):
+            optimizer.zero_grad()
+            y_pred = model(X)
+            loss = criterion(y_pred, y)
+            loss.backward()
+            optimizer.step()
+            losses.append(loss.item())
 
-    avg_loss = total_loss / len(loader)
-    train_losses.append(avg_loss)
+        final_loss = losses[-1]
 
-    print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss/len(loader):.4f}")
+        results.append({
+            "gcn_hidden": gcn_hidden,
+            "lr": lr,
+            "final_loss": final_loss
+        })
 
-torch.save(model.state_dict(), "checkpoints/tgcn_metrla.pth")
-np.save("checkpoints/train_losses.npy",np.array(train_losses))
+        print(f"Final Loss: {final_loss:.4f}")
+
+        torch.save(model.state_dict(), f"checkpoints/tgcn_gcn{gcn_hidden}_lr{lr}.pth")
+        np.save(f"checkpoints/train_losses_gcn{gcn_hidden}_lr{lr}.npy",np.array(losses))
+
+
